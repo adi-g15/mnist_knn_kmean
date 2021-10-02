@@ -1,11 +1,10 @@
 #pragma once
 
-#include <cstddef>
 #include <cstdint>
 #include <vector>
 
 using std::vector;
-using std::byte;
+using byte = uint8_t;
 
 class Observation {
     vector<byte> mFeatures;

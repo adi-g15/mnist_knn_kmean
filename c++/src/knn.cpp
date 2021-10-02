@@ -2,23 +2,52 @@
 #include "observation.hpp"
 #include "subset.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <random>
 #include <cassert>
+#include <span>
+#include <utility>
+#include <vector>
 
 using std::vector;
 
-Subset<KNN::data_point> KNN::find_k_nearest(data_point& query_point) {
-    auto distances = vector<double>();
+// Invariant: k is less than or equal to training dataset size
+Subset<KNN::data_point,std::span<KNN::data_point>> KNN::find_k_nearest(const data_point& query_point) {
+    auto distances = vector<std::pair<double,size_t>>();
     distances.reserve(training_dataset.size());
 
-    for (const auto& data : training_dataset) {
-	distances.push_back( KNN::get_distance(query_point, data) );
+    auto nearest_elements_indices = vector<uint64_t>();	// instead of storing copy of objects, we use the memory efficient Subset class
+
+    for (auto i = 0; i < training_dataset.size(); ++i) {
+	distances.push_back( { KNN::get_distance(query_point, training_dataset[i]), i} );
     }
 
+    // TODO: Fill in "nearest_elements_indices" vector, this is NlogN currently
+    // improve it to atleast NK^2
+    std::ranges::sort( distances );
+    for(int i=0; i<7; ++i) {
+	nearest_elements_indices.push_back(distances[i].second);
+    }
+
+    // this is just bit trickery, for eg.
+    // Let original set be {1,2,3,4,5}, consider these ways to store the subset
+    // {1,2}:
+    // 1. Create another set, add 1 and 2, ... so we get {1,2}, but for large
+    // objects this will require copying those objects
+    // 2. Bit Manipulation: The same subset can be represented as "11000", WITH
+    // A REFERENCE to original set, so we know 1st and 2nd are included in this
+    // subset
+    auto _subset_repr = vector<bool>( training_dataset.size() );
+
+    for (auto index : nearest_elements_indices) {
+	_subset_repr[index] = true;
+    }
+
+    return Subset<data_point,span<data_point>>(training_dataset, _subset_repr);
 }
 
 double KNN::get_distance(const data_point& query_point,
@@ -35,18 +64,35 @@ double KNN::get_distance(const data_point& query_point,
 		"Feature vectors of each point must be of same length");
 
 	for (auto i=0; i<query_features.size(); ++i) {
-	    distance += std::pow( std::to_integer<uint8_t>(query_features[i])
-				    - std::to_integer<uint8_t>(point_features[i]), 2 );
+	    distance += std::pow( query_features[i] - point_features[i], 2 );
 	}
 
 	distance = std::sqrt(distance);
+	return distance;
     } else {
 	// TODO: Add Manhattan distance
     }
 }
 
-void KNN::predict() {
+byte KNN::predict_known(const KNN::data_point& data) {
+    auto k_neighbours = find_k_nearest(data);
 
+    // Can use a 256 length array, but for that use uint8_t instead of
+    // std::byte, since to use it as index it will ask
+    //std::map<byte,int> label_freq;	// frequencies
+    auto label_freq = std::array<int,256>();	// max 256 1-byte labels possible
+
+    // IMP NOTE: assuming labels start from 0
+    for (const auto& neighbour : k_neighbours) {
+	++label_freq[ neighbour.get_label() ];
+    }
+
+    assert(!k_neighbours.empty());
+    return std::max_element(label_freq.begin(), label_freq.end()) - label_freq.begin();
+}
+
+byte KNN::predict(const vector<byte>& feature_vector) {
+    // TODO
 }
 
 void KNN::split_dataset() {
@@ -81,12 +127,34 @@ void KNN::split_dataset() {
 		<< "\n\t" << testing_dataset.size();
 }
 
+void KNN::train() {	// using validation_dataset to chose good 'k'
+    // Just trying k=0 to k=5 for now
+    for(k=1; k<5; ++k) {
+	auto count_correct = 0, i = 1;
+	for(const auto& data: validation_dataset) {
+	    auto predicted_label = this->predict_known(data);
+
+	    if( predicted_label == data.get_label() ) {
+		++count_correct;
+	    } else {
+		std::cout << "[Wrong] ";
+	    }
+
+	    std::cout << int(data.get_label()) << " -> " << int(predicted_label) << "; current accuracy = " << (count_correct*100.0f)/i << '%' << std::endl;
+	    ++i;
+	}
+    }
+    // TODO
+}
+
+double KNN::get_test_performance() {
+    // TODO
+}
+
 KNN::KNN(vector<data_point> dataset):
     k(5),	// just to initialize, this will be calculated later
     dataset(dataset)
 {
-    Subset subset(dataset, {});
-
     this->split_dataset();
 }
 
