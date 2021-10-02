@@ -10,37 +10,22 @@ pub struct KNN<'a> {
 }
 
 impl KNN<'_> {
-    fn test_train_split(dataset: & mut [Observation]) ->
-        (&[Observation], &[Observation], &[Observation]) {
+    pub fn new<'a>(dataset: &'a mut [Observation]) -> KNN<'a> {
+
         const TRAIN_SET_RATIO: f32 = 0.75;   // use 75% of dataset for training
         const VALIDATION_SET_RATIO: f32 = 0.10;
         const TEST_SET_RATIO: f32 = 0.15;
 
         let num_elements_train = TRAIN_SET_RATIO * dataset.len() as f32;
-        let num_elements_test  = TEST_SET_RATIO * dataset.len() as f32;
-
-        // TODO: Later completely shuffle the vector instead of partial_shuffle
+        let num_elements_validation  = TEST_SET_RATIO * dataset.len() as f32;
 
         let mut rng = thread_rng();
+        dataset.shuffle(&mut rng);
         let (training_set, rest_of_data)
-            = dataset.partial_shuffle(&mut rng, num_elements_train as usize);
+            = dataset.split_at(num_elements_train as usize);
 
         let (validation_set, test_set)
-            = rest_of_data.partial_shuffle(&mut rng, num_elements_test as usize);
-
-        (training_set, validation_set, test_set)
-    }
-
-    pub fn new<'a>(dataset: &'a mut [Observation]) -> KNN<'a> {
-        let (training_set, validation_set, test_set);
-            {
-                let (a,b,c) = KNN::test_train_split(dataset);
-                training_set = a;
-                validation_set = b;
-                test_set = c;
-            };
-
-        let data = dataset;
+            = rest_of_data.split_at(num_elements_validation as usize);
 
         KNN {
             k: 5,   // Won't be used, k needs to be calculated later
