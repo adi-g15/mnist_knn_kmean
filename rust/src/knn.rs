@@ -40,6 +40,8 @@ impl KNN<'_> {
                 test_set = c;
             };
 
+        let data = dataset;
+
         KNN {
             k: 5,   // Won't be used, k needs to be calculated later
             dataset,
