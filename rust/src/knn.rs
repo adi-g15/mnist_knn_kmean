@@ -1,6 +1,7 @@
 use crate::observation::Observation;
 use rand::{thread_rng, seq::SliceRandom};
 
+// There is a logical problem, it doesn't 'own' the dataset, which it should acc to me
 pub struct KNN<'a> {
     pub k: u32,
     dataset: &'a [Observation],  // complete dataset

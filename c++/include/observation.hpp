@@ -8,13 +8,15 @@ using std::vector;
 using std::byte;
 
 class Observation {
-    vector<byte> features;
-    byte label;
+    vector<byte> mFeatures;
+    byte mLabel;
 
     public:
+    const vector<byte>& get_features() const noexcept { return mFeatures; }
+    byte get_label() const noexcept { return mLabel; }
     Observation(vector<byte> feature_vector, byte label) noexcept:
-	features(feature_vector),
-	label(label) {}
+	mFeatures(feature_vector),
+	mLabel(label) {}
     ~Observation() { /*all members RAII already*/ }
 };
 

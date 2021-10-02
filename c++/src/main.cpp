@@ -1,13 +1,15 @@
-#include "observation.hpp"
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <ios>
 #include <iostream>
+#include <utility>
 #include <vector>
 #include <fstream>
 #include <cassert>
 #include <bit>
-#include "endian.hpp"
+#include <endian.hpp>
+#include "knn.hpp"
+#include "kmean.hpp"
 
 using std::vector;
 using std::ifstream;
@@ -107,5 +109,15 @@ int main() {
     std::cout << "Read " << test_dataset.size() << " observations from test data\n";
 
     // ETL - Extracted, Loaded... tranformed in the sense we created object for each image data
+
+    // Now create the KNN Model
+    auto complete_dataset = std::move(train_dataset);
+    complete_dataset.insert(complete_dataset.end(), test_dataset.begin(), test_dataset.end());
+    auto knn_model = KNN(complete_dataset);
+    knn_model.train();
+
+    std::cout << "Testing Accuracy of KNN model: " << knn_model.get_test_performance() << '\n';
+
+    // knn_model.predict(data_point) ... we don't have a data point, ie. 28*28 byte array to predict now :(
 }
 
