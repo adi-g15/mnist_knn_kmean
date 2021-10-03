@@ -17,11 +17,11 @@ class KNN {
 		      testing_dataset;
 
     private:
-	Subset<data_point,std::span<data_point>> find_k_nearest(const data_point& query_point);
-	void split_dataset();
-	byte predict_known(const data_point&);	// used in validation, we already know the label, since it takes in data_point
-	static double get_distance(const data_point& query_point,
-				   const data_point& to) noexcept;
+	Subset<data_point,std::span<data_point>>
+		find_k_nearest(const vector<byte>& query_point_features);
+	void split_dataset() noexcept;
+	static double get_distance(const vector<byte>& query_features,
+				   const vector<byte>& point_features) noexcept;
 
     public:
 	void train();

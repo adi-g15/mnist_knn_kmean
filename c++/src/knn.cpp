@@ -3,31 +3,36 @@
 #include "subset.hpp"
 #include <algorithm>
 #include <array>
+#include <bits/ranges_algo.h>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <pstl/glue_execution_defs.h>
 #include <random>
 #include <cassert>
 #include <span>
 #include <utility>
 #include <vector>
+#include <execution>
 
 using std::vector;
 
 // Invariant: k is less than or equal to training dataset size
-Subset<KNN::data_point,std::span<KNN::data_point>> KNN::find_k_nearest(const data_point& query_point) {
+Subset<KNN::data_point,std::span<KNN::data_point>> KNN::find_k_nearest(const vector<byte>& query_point_features) {
     auto distances = vector<std::pair<double,size_t>>();
     distances.reserve(training_dataset.size());
 
     auto nearest_elements_indices = vector<uint64_t>();	// instead of storing copy of objects, we use the memory efficient Subset class
 
     for (auto i = 0; i < training_dataset.size(); ++i) {
-	distances.push_back( { KNN::get_distance(query_point, training_dataset[i]), i} );
+	distances.push_back({
+	    KNN::get_distance(query_point_features, training_dataset[i].get_features()), i
+	    });
     }
 
-    // TODO: Fill in "nearest_elements_indices" vector, this is NlogN currently
-    // improve it to atleast NK^2
+    // Fill in "nearest_elements_indices" vector, this is NlogN currently
+    // TODO: improve it to atleast NK^2
     std::ranges::sort( distances );
     for(int i=0; i<7; ++i) {
 	nearest_elements_indices.push_back(distances[i].second);
@@ -50,14 +55,11 @@ Subset<KNN::data_point,std::span<KNN::data_point>> KNN::find_k_nearest(const dat
     return Subset<data_point,span<data_point>>(training_dataset, _subset_repr);
 }
 
-double KNN::get_distance(const data_point& query_point,
-			        const data_point& to) noexcept {
+double KNN::get_distance(const vector<byte>& query_features,
+			        const vector<byte>& point_features) noexcept {
     constexpr bool USE_EUCLIDEAN_DISTANCE = true;
 
     if constexpr ( USE_EUCLIDEAN_DISTANCE ) {
-	const auto &query_features = query_point.get_features();
-	const auto &point_features = to.get_features();
-
 	auto distance = 0.0;
 
 	assert(query_features.size() == point_features.size() &&
@@ -74,8 +76,8 @@ double KNN::get_distance(const data_point& query_point,
     }
 }
 
-byte KNN::predict_known(const KNN::data_point& data) {
-    auto k_neighbours = find_k_nearest(data);
+byte KNN::predict(const vector<byte>& feature_vector) {
+    auto k_neighbours = find_k_nearest(feature_vector);
 
     // Can use a 256 length array, but for that use uint8_t instead of
     // std::byte, since to use it as index it will ask
@@ -91,11 +93,7 @@ byte KNN::predict_known(const KNN::data_point& data) {
     return std::max_element(label_freq.begin(), label_freq.end()) - label_freq.begin();
 }
 
-byte KNN::predict(const vector<byte>& feature_vector) {
-    // TODO
-}
-
-void KNN::split_dataset() {
+void KNN::split_dataset() noexcept {
     std::random_device rd;
     std::mt19937 generator(rd());
 
@@ -122,33 +120,52 @@ void KNN::split_dataset() {
 	    dataset.end()
 	    );
 
-    std::cout << "Lengths: \n\t" << training_dataset.size()
-		<< "\n\t" << validation_dataset.size()
-		<< "\n\t" << testing_dataset.size();
+    std::cout << "Lengths of datasets: \n\tTraining: " << training_dataset.size()
+		<< "\n\tValidation: " << validation_dataset.size()
+		<< "\n\tTesting: " << testing_dataset.size() << '\n';
 }
 
 void KNN::train() {	// using validation_dataset to chose good 'k'
+    auto max_correct_count = 0;
+    auto best_k = 1;
     // Just trying k=0 to k=5 for now
-    for(k=1; k<5; ++k) {
-	auto count_correct = 0, i = 1;
+    for(auto i=1; i<5; ++i) {
+	auto count_correct = 0, j = 1;
+	std::cout << "Validating for k=" << i << '\n';
 	for(const auto& data: validation_dataset) {
-	    auto predicted_label = this->predict_known(data);
+	    auto predicted_label = this->predict(data.get_features());
 
 	    if( predicted_label == data.get_label() ) {
 		++count_correct;
-	    } else {
+	    }/* else {
 		std::cout << "[Wrong] ";
-	    }
+	    }*/
 
-	    std::cout << int(data.get_label()) << " -> " << int(predicted_label) << "; current accuracy = " << (count_correct*100.0f)/i << '%' << std::endl;
-	    ++i;
+	    if( j % 1024 == 0 )
+		std::cout << "\tEpochs: " << j << "; Current accuracy = " << (count_correct*100.0f)/j << '%' << std::endl;
+	    // std::cout << int(data.get_label()) << " -> " << int(predicted_label) << "; current accuracy = " << (count_correct*100.0f)/j << '%' << std::endl;
+	    ++j;
+	}
+
+	if ( count_correct > max_correct_count ) {
+	    best_k = i;
 	}
     }
-    // TODO
+
+    std::cout << "Optimal value of k after validating: " << best_k << '\n';
+    this->k = best_k;
 }
 
 double KNN::get_test_performance() {
-    // TODO
+    auto count_correct = 
+	std::count_if(
+		std::execution::par_unseq,
+		testing_dataset.begin(), training_dataset.end(),
+		[this](const auto& data) {
+		    return predict(data.get_features()) == data.get_label();
+		});
+
+    return (double)(count_correct) / testing_dataset.size();
 }
 
 KNN::KNN(vector<data_point> dataset):
