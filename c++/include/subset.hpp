@@ -87,5 +87,6 @@ class Subset {
 	}
 
 	friend class Iterator;
+	friend class KNN;	// DEBUG
 };
 

@@ -3,12 +3,11 @@
 #include "subset.hpp"
 #include <algorithm>
 #include <array>
-#include <bits/ranges_algo.h>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
-#include <pstl/glue_execution_defs.h>
 #include <random>
 #include <cassert>
 #include <span>
@@ -78,6 +77,11 @@ double KNN::get_distance(const vector<byte>& query_features,
 
 byte KNN::predict(const vector<byte>& feature_vector) {
     auto k_neighbours = find_k_nearest(feature_vector);
+    std::cout << "Received " << k_neighbours.size() << " neighbours: ";
+    for (auto i=0; i<k_neighbours._subset_repr.size(); i++) {
+	if(k_neighbours._subset_repr[i]) std::cout << i << ", ";
+    }
+    std::cout << "\n";
 
     // Can use a 256 length array, but for that use uint8_t instead of
     // std::byte, since to use it as index it will ask
@@ -129,27 +133,33 @@ void KNN::train() {	// using validation_dataset to chose good 'k'
     auto max_correct_count = 0;
     auto best_k = 1;
     // Just trying k=0 to k=5 for now
-    for(auto i=1; i<5; ++i) {
-	auto count_correct = 0, j = 1;
-	std::cout << "Validating for k=" << i << '\n';
-	for(const auto& data: validation_dataset) {
-	    auto predicted_label = this->predict(data.get_features());
+    for(k=1; k<=5; ++k) {
+	// this is basically 'int', using atomic, since we are going to parallelize it
+	std::atomic_uint64_t count_correct{0}, i{1};
+	std::cout << "Validating for k=" << k << '\n';
+	std::for_each(
+	    std::execution::par_unseq,
+	    validation_dataset.begin(), validation_dataset.end(),
+	    [this, &i, &count_correct](const auto& data) {
+	    	auto predicted_label = this->predict(data.get_features());
 
-	    if( predicted_label == data.get_label() ) {
-		++count_correct;
-	    }/* else {
-		std::cout << "[Wrong] ";
-	    }*/
+	    	if( predicted_label == data.get_label() ) {
+		    ++count_correct;
+		}/* else {
+		    std::cout << "[Wrong] ";
+		}*/
 
-	    if( j % 1024 == 0 )
-		std::cout << "\tEpochs: " << j << "; Current accuracy = " << (count_correct*100.0f)/j << '%' << std::endl;
-	    // std::cout << int(data.get_label()) << " -> " << int(predicted_label) << "; current accuracy = " << (count_correct*100.0f)/j << '%' << std::endl;
-	    ++j;
-	}
+		if( i % 1000 == 0 )
+		    std::cout << "\tEpochs: " << i << "; Current accuracy = " << (double)(count_correct * 100)/i << "%\n";
+		// std::cout << int(data.get_label()) << " -> " << int(predicted_label);
+		++i;
+	    });
 
 	if ( count_correct > max_correct_count ) {
-	    best_k = i;
+	    best_k = k;
+	    max_correct_count = count_correct;
 	}
+	std::cout << "\tAccuracy: " << (double)(count_correct.load() * 100)/validation_dataset.size() << "\nBest k=" << best_k << '\n';
     }
 
     std::cout << "Optimal value of k after validating: " << best_k << '\n';

@@ -23,6 +23,9 @@ add_custom_command( TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
 
 add_library(knn src/knn.cpp)
 add_library(kmean src/kmean.cpp)
+find_package(Threads REQUIRED)
+find_package(TBB REQUIRED)
 
+target_link_libraries(${CMAKE_PROJECT_NAME} Threads::Threads tbb)
 target_link_libraries(${CMAKE_PROJECT_NAME} kmean knn)
 target_link_libraries(${CMAKE_PROJECT_NAME} endian)
