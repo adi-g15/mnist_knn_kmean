@@ -8,35 +8,62 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <numeric>
 #include <random>
 #include <cassert>
 #include <span>
+#include <ranges>
+#include <map>
 #include <utility>
 #include <vector>
 #include <execution>
 
 using std::vector;
 
+// https://www.geeksforgeeks.org/k-largestor-smallest-elements-in-an-array/
+vector<size_t> get_k_smallest_indices(const vector<double>& v, int k) {
+    // we could sort, then chose k smallest but that is NlogN, we want even
+    // better, ie. O(Nk), k is generally small, so it's better
+
+    vector<size_t> idx(k);
+    std::iota( idx.begin(), idx.end(), 0 );	// fill idx with 0,1,2,3,4...k
+
+    // O(Nk)... k is generally small, there are faster methods at link given
+    // above
+    // NOTE: idx is an array of vectors, so actual value is received by using
+    // v[ idx[i] ], also the current_max_idx is same, it is INDEX IN idx ARRAY
+    // NOT v, so it stores the 'index which contains the index to the value in v'
+    for (auto i=0; i<v.size(); ++i) {
+	auto current_max_idx = 0;
+	for (auto j=1; j<k; ++j) {
+	    if ( v[idx[j]] > v[ idx[current_max_idx] ] ) {
+		current_max_idx = j;
+	    }
+	}
+
+	if( v[i] < v[ idx[current_max_idx] ] ) {
+	    idx[ current_max_idx ] = i;
+	}
+    }
+
+    return idx;
+}
+
 // Invariant: k is less than or equal to training dataset size
-Subset<KNN::data_point,std::span<KNN::data_point>> KNN::find_k_nearest(const vector<byte>& query_point_features) {
-    auto distances = vector<std::pair<double,size_t>>();
+Subset<KNN::data_point,std::span<KNN::data_point>> KNN::find_k_nearest(const vector<byte>& query_point_features) const {
+    auto distances = vector<double>();
     distances.reserve(training_dataset.size());
 
-    auto nearest_elements_indices = vector<uint64_t>();	// instead of storing copy of objects, we use the memory efficient Subset class
-
     for (auto i = 0; i < training_dataset.size(); ++i) {
-	distances.push_back({
-	    KNN::get_distance(query_point_features, training_dataset[i].get_features()), i
-	    });
+	distances.push_back(
+	    KNN::get_distance(query_point_features, training_dataset[i].get_features())
+	    );
     }
 
     // Fill in "nearest_elements_indices" vector, this is NlogN currently
-    // TODO: improve it to atleast NK^2
-    std::ranges::sort( distances );
-    for(int i=0; i<7; ++i) {
-	nearest_elements_indices.push_back(distances[i].second);
-    }
+    const auto k_smallest_distances_idx = get_k_smallest_indices( distances, k );	// get 7 smallest
 
+    // instead of storing copy of objects, we use the memory efficient Subset class
     // this is just bit trickery, for eg.
     // Let original set be {1,2,3,4,5}, consider these ways to store the subset
     // {1,2}:
@@ -47,7 +74,7 @@ Subset<KNN::data_point,std::span<KNN::data_point>> KNN::find_k_nearest(const vec
     // subset
     auto _subset_repr = vector<bool>( training_dataset.size() );
 
-    for (auto index : nearest_elements_indices) {
+    for (auto index : k_smallest_distances_idx) {
 	_subset_repr[index] = true;
     }
 
@@ -75,16 +102,27 @@ double KNN::get_distance(const vector<byte>& query_features,
     }
 }
 
-byte KNN::predict(const vector<byte>& feature_vector) {
+// Returns all labels, and how probable it is to be one of them
+std::map<byte,double> KNN::predict_with_accuracies(const vector<byte>& feature_vector) const {
     auto k_neighbours = find_k_nearest(feature_vector);
-    std::cout << "Received " << k_neighbours.size() << " neighbours: ";
-    for (auto i=0; i<k_neighbours._subset_repr.size(); i++) {
-	if(k_neighbours._subset_repr[i]) std::cout << i << ", ";
-    }
-    std::cout << "\n";
 
-    // Can use a 256 length array, but for that use uint8_t instead of
-    // std::byte, since to use it as index it will ask
+    auto label_freq = std::array<int,256>();
+    for(const auto& neighbour: k_neighbours) {
+	++label_freq[ neighbour.get_label() ];
+    }
+
+    // NOTE: MNIST dataset has 10 labels, using that
+    auto freq_map = std::map<byte, double>();
+    for (auto i=0; i < 10; ++i) {
+	freq_map[i] = double(label_freq[i]*100)/k_neighbours.size();
+    }
+
+    return freq_map;
+}
+
+byte KNN::predict(const vector<byte>& feature_vector) const {
+    auto k_neighbours = find_k_nearest(feature_vector);
+
     //std::map<byte,int> label_freq;	// frequencies
     auto label_freq = std::array<int,256>();	// max 256 1-byte labels possible
 
@@ -93,7 +131,6 @@ byte KNN::predict(const vector<byte>& feature_vector) {
 	++label_freq[ neighbour.get_label() ];
     }
 
-    assert(!k_neighbours.empty());
     return std::max_element(label_freq.begin(), label_freq.end()) - label_freq.begin();
 }
 
@@ -133,7 +170,7 @@ void KNN::train() {	// using validation_dataset to chose good 'k'
     auto max_correct_count = 0;
     auto best_k = 1;
     // Just trying k=0 to k=5 for now
-    for(k=1; k<=5; ++k) {
+    for(k=1; k<5; ++k) {
 	// this is basically 'int', using atomic, since we are going to parallelize it
 	std::atomic_uint64_t count_correct{0}, i{1};
 	std::cout << "Validating for k=" << k << '\n';
@@ -166,16 +203,16 @@ void KNN::train() {	// using validation_dataset to chose good 'k'
     this->k = best_k;
 }
 
-double KNN::get_test_performance() {
-    auto count_correct = 
+double KNN::get_test_performance() const {
+    auto count_correct =
 	std::count_if(
 		std::execution::par_unseq,
-		testing_dataset.begin(), training_dataset.end(),
+		testing_dataset.begin(), testing_dataset.end(),
 		[this](const auto& data) {
 		    return predict(data.get_features()) == data.get_label();
 		});
 
-    return (double)(count_correct) / testing_dataset.size();
+    return (double)(count_correct*100) / testing_dataset.size();
 }
 
 KNN::KNN(vector<data_point> dataset):

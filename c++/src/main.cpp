@@ -114,9 +114,19 @@ int main() {
     auto complete_dataset = std::move(train_dataset);
     complete_dataset.insert(complete_dataset.end(), test_dataset.begin(), test_dataset.end());
     auto knn_model = KNN(complete_dataset);
-    knn_model.train();
+    // knn_model.train();
 
-    std::cout << "Testing Accuracy of KNN model: " << knn_model.get_test_performance() << '\n';
+    std::cout << "Testing Accuracy of KNN model: " << knn_model.get_test_performance() << "%\n";
+
+    // NOTE: Most of the time, we will see one 100%, and all other 0% possibilities, ie. accurate prediction, this is because, here it is among k neighbours only, ie. k is small, if all 4(k) neighbours are 6, then we get 100% chance of 6, which is very probable, since value of k is very low
+    const auto& rand_data_point = test_dataset[ rand()%test_dataset.size() ];
+    std::cout << "Taking a random data_point from test_set: Digit "
+	      << (int)rand_data_point.get_label() << '\n';
+
+    auto possibilities = knn_model.predict_with_accuracies(rand_data_point.get_features());
+    for(auto& p: possibilities) {
+	std::cout << static_cast<int>(p.first) << " -> " << p.second << "%\n";
+    }
 
     // knn_model.predict(data_point) ... we don't have a data point, ie. 28*28 byte array to predict now :(
 }
