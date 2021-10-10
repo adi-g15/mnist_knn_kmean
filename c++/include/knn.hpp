@@ -16,7 +16,7 @@ class KNN {
     span<data_point> training_dataset, validation_dataset, testing_dataset;
 
   private:
-    Subset<data_point, std::span<data_point>>
+    Subset<std::span<data_point>>
     find_k_nearest(const vector<byte> &query_point_features) const;
     void split_dataset() noexcept;
     static double get_distance(const vector<byte> &query_features,

@@ -51,7 +51,7 @@ vector<size_t> get_k_smallest_indices(const vector<double> &v, int k) {
 }
 
 // Invariant: k is less than or equal to training dataset size
-Subset<KNN::data_point, std::span<KNN::data_point>>
+Subset<span<KNN::data_point>>
 KNN::find_k_nearest(const vector<byte> &query_point_features) const {
     auto distances = vector<double>();
     distances.reserve(training_dataset.size());
@@ -73,13 +73,13 @@ KNN::find_k_nearest(const vector<byte> &query_point_features) const {
     // 2. Bit Manipulation: The same subset can be represented as "11000", WITH
     // A REFERENCE to original set, so we know 1st and 2nd are included in this
     // subset
-    auto _subset_repr = vector<bool>(training_dataset.size());
+    auto subset = Subset<span<data_point>>(training_dataset);
 
     for (auto index : k_smallest_distances_idx) {
-        _subset_repr[index] = true;
+        subset.insert_index(index);
     }
 
-    return Subset<data_point, span<data_point>>(training_dataset, _subset_repr);
+    return subset;
 }
 
 double KNN::get_distance(const vector<byte> &query_features,

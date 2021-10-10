@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <bits/ranges_algo.h>
 #include <concepts>
+#include <cstddef>
 #include <iterator>
 #include <span>
 #include <type_traits>
@@ -12,10 +13,9 @@ using std::vector;
 
 // Currently only for vector, or span
 // template<typename T, ReversibleContainer ContainerType>
-template <typename T, typename ContainerType = std::vector<T>> class Subset {
-    static_assert(
-        std::is_same_v<T, typename ContainerType::value_type>,
-        "Container must be holding objects of same type as the subset");
+template <typename ContainerType> class Subset {
+    using T = typename ContainerType::value_type;
+
     // Idea from the "Competetive programmer handbook", we can use a binary
     // number to denote a subset, with 1 for indices of elements included in
     // this 'subset' and 0 for indices not in this subset
@@ -31,12 +31,11 @@ template <typename T, typename ContainerType = std::vector<T>> class Subset {
         using reference = T &;
 
         pointer m_ptr; // current element
-        Subset<T, ContainerType> &_subset;
+        Subset<ContainerType> &_subset;
         int curr_index;
 
       public:
-        Iterator(pointer ptr, Subset<T, ContainerType> &_subset,
-                 int current_index)
+        Iterator(pointer ptr, Subset<ContainerType> &_subset, int current_index)
             : m_ptr(ptr), _subset(_subset), curr_index(current_index) {}
         reference operator*() { return *m_ptr; }
         pointer operator->() { return m_ptr; }
@@ -81,14 +80,26 @@ template <typename T, typename ContainerType = std::vector<T>> class Subset {
         }
     }
     Iterator end() { return Iterator(nullptr, *this, -1); }
-    int size() { return length; }
-    bool empty() { return size() == 0; }
-    Subset(const ContainerType &original_set, vector<bool> subset)
-        : _original_set(original_set), _subset_repr(subset) {
 
-        length = std::count(_subset_repr.begin(), _subset_repr.end(), true);
+    void insert_index(size_t element_index) noexcept {
+        if (element_index < _original_set.size()) {
+            if (_subset_repr.size() < element_index) {
+                // Making sure _subset_repr has at least 'element_index' values
+                _subset_repr.resize(element_index);
+            }
+            _subset_repr[element_index] = true;
+        }
+    }
+
+    int size() const { return length; }
+    bool empty() const { return size() == 0; }
+
+    Subset(const ContainerType &original_set) : _original_set(original_set) {
+
+        // Subset array can be lesser size than that of original set (since it
+        // just needs to be as long to store the 'last' true)
+        length = 0;
     }
 
     friend class Iterator;
-    friend class KNN; // DEBUG
 };
