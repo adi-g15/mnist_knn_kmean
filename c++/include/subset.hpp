@@ -91,6 +91,12 @@ template <typename ContainerType> class Subset {
         }
     }
 
+    bool includes_index(size_t element_index) const {
+	// If the bool vector is smaller than the index requested, then it's not present for sure, since if it was added, we make sure the vector size is sufficiently increased in `insert_index`
+	return element_index > _subset_repr.size() ||
+	    _subset_repr.at(element_index);
+    }
+
     int size() const { return length; }
     bool empty() const { return size() == 0; }
 

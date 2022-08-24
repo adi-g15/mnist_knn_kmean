@@ -123,11 +123,13 @@ int main() {
     auto complete_dataset = std::move(train_dataset);
     complete_dataset.insert(complete_dataset.end(), test_dataset.begin(),
                             test_dataset.end());
-    auto knn_model = KNN(complete_dataset);
-    // knn_model.train();
 
-    std::cout << "Testing Accuracy of KNN model: "
-              << knn_model.get_test_performance() << "%\n";
+    /* K NEAREST NEIGHBOURS (KNN) */
+    auto knn_model = KNN(complete_dataset);
+    knn_model.train();
+
+    // std::cout << "Testing Accuracy of KNN model: "
+    //          << knn_model.get_test_performance() << "%\n";
 
     // NOTE: Most of the time, we will see one 100%, and all other 0%
     // possibilities, ie. accurate prediction, this is because, here it is among
@@ -145,5 +147,9 @@ int main() {
     }
 
     // knn_model.predict(data_point) ... we don't have a data point, ie. 28*28
+
+    /* K MEANS (KMEANS) */
+    auto kmeans_model = KMeans(complete_dataset);
+    kmeans_model.train();
     // byte array to predict now :(
 }

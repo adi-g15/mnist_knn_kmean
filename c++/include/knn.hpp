@@ -23,7 +23,8 @@ class KNN {
                                const vector<byte> &point_features) noexcept;
 
   public:
-    void train();
+    int validate_compute_optimal_k() const ;
+    void train(int k = 0);
     byte predict(const vector<byte> &feature_vectors)
         const; // we don't pass the data_point class here, it already has the
                // label

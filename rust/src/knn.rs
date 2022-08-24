@@ -1,5 +1,6 @@
 use crate::observation::Observation;
 use rand::{thread_rng, seq::SliceRandom};
+use byte_set::ByteSet;
 
 // There is a logical problem, it doesn't 'own' the dataset, which it should acc to me
 pub struct KNN<'a> {
@@ -35,6 +36,18 @@ impl KNN<'_> {
             validation_set,
             test_set
         }
+    }
+
+    fn find_k_nearest_neighbours(features_vector: &[Observation]) -> ByteSet {
+
+    }
+    
+    pub fn train(&mut self) {
+
+    }
+
+    pub fn predict(features_vector: &[Observation]) -> u8 {
+
     }
 }
 

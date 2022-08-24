@@ -1,5 +1,6 @@
 mod observation;
 mod knn;
+mod subset;
 
 use observation::Observation;
 use knn::KNN;
